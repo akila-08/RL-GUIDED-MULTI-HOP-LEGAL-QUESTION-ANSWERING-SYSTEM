@@ -1,17 +1,19 @@
-numpy==1.26.4
+# PDF extraction
+pymupdf>=1.23.0
 
-torch==2.2.2+cpu
---extra-index-url https://download.pytorch.org/whl/cpu
+# Vector database
+chromadb>=0.4.24
 
-sentence-transformers==2.6.1
-transformers==4.41.2
+# Embeddings
+sentence-transformers>=2.7.0
 
-faiss-cpu==1.8.0
+# API
+fastapi>=0.111.0
+uvicorn[standard]>=0.29.0
+pydantic>=2.0.0
 
-pymupdf==1.24.3
+# LLM
+anthropic>=0.26.0
 
-rank-bm25==0.2.2
-
-scikit-learn==1.4.2
-
-tqdm==4.66.4
+# Config
+python-dotenv>=1.0.0

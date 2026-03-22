@@ -1,7 +1,42 @@
-venv/
+# Python cache
 __pycache__/
 *.pyc
+*.pyo
+*.pyd
+
+# Virtual environment
+venv/
+.env/
+
+# Data / models
 *.pkl
 *.bin
+*.h5
+*.pt
+*.onnx
+
+# Logs
 *.log
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDEs
+.vscode/
+.idea/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Build
+dist/
+build/
+*.egg-info/
+
+# Environment variables
 .env
+
+# Large files (optional)
+*.csv
+*.xlsx
