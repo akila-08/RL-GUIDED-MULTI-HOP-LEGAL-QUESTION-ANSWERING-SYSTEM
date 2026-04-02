@@ -40,3 +40,13 @@ build/
 # Large files (optional)
 *.csv
 *.xlsx
+
+# Models
+decomp_model/
+results/
+*.pt
+*.bin
+*.safetensors
+
+# DB
+chroma_db/

@@ -4,8 +4,23 @@ pymupdf>=1.23.0
 # Vector database
 chromadb>=0.4.24
 
-# Embeddings
+# Embeddings + Re-ranking
 sentence-transformers>=2.7.0
+
+# Keyword extraction
+yake
+scikit-learn>=1.3.0
+
+# BM25
+rank_bm25>=0.2.2
+
+# NLP utilities
+nltk>=3.8.0
+spacy>=3.7.0
+rouge-score>=0.1.2
+
+# NLI / Entailment cross-encoder
+# (uses sentence-transformers, model: cross-encoder/nli-deberta-v3-small)
 
 # API
 fastapi>=0.111.0
@@ -14,6 +29,20 @@ pydantic>=2.0.0
 
 # LLM
 anthropic>=0.26.0
+google-genai>=0.5.0
 
 # Config
 python-dotenv>=1.0.0
+
+# Transformers / NLP
+transformers>=4.40.0
+datasets>=2.18.0
+accelerate>=0.28.0
+sentencepiece>=0.2.0
+
+# RL / Torch
+torch>=2.2.0
+
+# Training utils
+numpy>=1.26.0
+tqdm>=4.66.0

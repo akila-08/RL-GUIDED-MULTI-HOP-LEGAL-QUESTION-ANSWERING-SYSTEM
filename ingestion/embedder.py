@@ -19,6 +19,7 @@ from sentence_transformers import SentenceTransformer
 
 from core.config import Config
 from ingestion.logger import get_logger
+from ingestion.keyword_extractor import extract_keywords_batch
 
 log = get_logger(__name__)
 
@@ -93,7 +94,12 @@ def embed_and_store(chunks: List[Dict]) -> Dict:
 
         ids        = [c["id"]          for c in batch]
         texts      = [c["text"]        for c in batch]
-        metadatas  = [_build_metadata(c) for c in batch]
+        # Extract keywords for this batch
+        keyword_strings = extract_keywords_batch(batch)
+
+        metadatas = [
+            _build_metadata(c, kw) for c, kw in zip(batch, keyword_strings)
+        ]
 
         # Embed
         embeddings = model.encode(
@@ -185,14 +191,15 @@ def reset_collection() -> None:
 
 # ── Internal helpers ──────────────────────────────────────────────────────────
 
-def _build_metadata(chunk: Dict) -> Dict:
+def _build_metadata(chunk: Dict, keywords: str = "") -> Dict:
     """
-    Build the metadata dict stored alongside each chunk in ChromaDB.
-    ChromaDB metadata values must be str, int, or float — no lists or None.
+    Build metadata for ChromaDB.
+    Keywords must be a STRING (not list).
     """
     return {
         "article_num": chunk.get("article_num", ""),
-        "title":       chunk.get("title",       "")[:500],   # cap at 500 chars
-        "part":        chunk.get("part",         ""),
-        "char_count":  chunk.get("char_count",   0),
+        "title":       chunk.get("title", "")[:500],
+        "part":        chunk.get("part", ""),
+        "char_count":  chunk.get("char_count", 0),
+        "keywords":    keywords,
     }
