@@ -52,8 +52,110 @@ PART_PATTERN = re.compile(
 # Em-dash variants used in the Constitution
 EM_DASH_RE = re.compile(r'[—\u2014\u2013]')
 
+def remove_toc(text: str) -> str:
+    """
+    Removes the Table of Contents from the extracted PDF text.
+    
+    WHY: The TOC lines look identical to article headers:
+         "1.  Name and territory of the Union."
+    So the chunker's regex was matching TOC entries as Article 1,
+    and the actual Article 1 body was being lost.
+    
+    FIX: We find where the real body text begins — right after the
+    Preamble ("WE, THE PEOPLE OF INDIA") — and slice everything before it away.
+    """
+    log.info("Attempting to remove Table of Contents...")
 
+    # Strategy 1: Find the Preamble — Constitution body always starts here
+    preamble = re.search(r'WE,\s+THE\s+PEOPLE\s+OF\s+INDIA', text, re.IGNORECASE)
+    if preamble:
+        log.info("TOC removed — body starts at Preamble (char %d)", preamble.start())
+        return text[preamble.start():]
+
+    # Strategy 2: Find the real PART I body (after TOC's PART I listing)
+    # The TOC just lists article names; the real body has full sentence content
+    part1_body = re.search(
+        r'PART\s+I\s*\n\s*THE UNION AND ITS TERRITORY\s*\n+\s*\d+\.\s+Name and territory of the Union\.—',
+        text,
+        re.IGNORECASE
+    )
+    if part1_body:
+        log.info("TOC removed — body starts at PART I real content (char %d)", part1_body.start())
+        return text[part1_body.start():]
+
+    # Strategy 3: Find first em-dash occurrence — TOC lines never have em-dashes
+    first_emdash = re.search(r'[—\u2014]', text)
+    if first_emdash:
+        # Walk back to the start of that line
+        line_start = text.rfind('\n', 0, first_emdash.start()) + 1
+        log.info("TOC removed via em-dash fallback (char %d)", line_start)
+        return text[line_start:]
+
+    log.warning("Could not detect TOC — returning text as-is")
+    return text
+import re
+
+def clean_pdf_text(text: str) -> str:
+    """
+    Cleans raw PyMuPDF-extracted text from the Constitution of India PDF.
+
+    Removes three categories of noise that cause wrong chunking:
+
+    PROBLEM 1 — Page headers (appear at top of every page after page 1):
+        THE CONSTITUTION OF INDIA
+        (Part I.—Union and its territory)
+        3                              ← page number on its own line
+
+    PROBLEM 2 — Footnote blocks (appear at bottom of every page):
+        ______________________________________________
+        1. Subs. by the Constitution (Seventh Amendment) Act...
+        2. Subs. by s. 2 ibid. for sub-clause (b)...
+        These match the article regex AND pass the em-dash filter
+        because the next page's header contains em-dashes.
+
+    PROBLEM 3 — Standalone page numbers at page start:
+        "2\nPART I\n..."  ← the "2" is a page number, not content
+    """
+
+    # ── Step 1: Remove page header blocks ─────────────────────────────────
+    # Pattern:
+    #   "THE CONSTITUTION OF INDIA"  (page header)
+    #   "(Part XYZ.—...)"            (running header, optional)
+    #   one or more digits           (page number)
+    text = re.sub(
+        r'THE CONSTITUTION OF INDIA\s*\n'
+        r'(?:\([^)]*[—\-][^)]*\)\s*\n)?'   # optional running header line
+        r'\d+\s*\n',
+        '\n',
+        text
+    )
+
+    # ── Step 2: Remove footnote blocks ────────────────────────────────────
+    # Everything from the dashed separator line to end of that page's footnotes
+    # Footnotes always follow a line of underscores/dashes
+    text = re.sub(
+        r'[_\-]{10,}\s*\n'                  # separator line (________)
+        r'(?:[\d]+\[?\..*\n)*'             # one or more footnote lines
+        r'(?:\s*\n)*',                      # trailing blank lines
+        '\n',
+        text
+    )
+
+    # ── Step 3: Remove standalone page numbers ────────────────────────────
+    # A lone number on its own line at the start of content
+    # (appears as first token on pages like "2\nPART I\n...")
+    text = re.sub(
+        r'(?m)^\d{1,3}\s*\n(?=PART\s+[IVXLC]+|[A-Z]{2,})',
+        '',
+        text
+    )
+
+    # ── Step 4: Collapse excessive blank lines ────────────────────────────
+    text = re.sub(r'\n{3,}', '\n\n', text)
+
+    return text.strip()
 # ── Public API ────────────────────────────────────────────────────────────────
+
 
 def chunk_by_article(text: str) -> List[Dict]:
     """
@@ -62,6 +164,8 @@ def chunk_by_article(text: str) -> List[Dict]:
     Returns list of dicts with keys:
         id, article_num, title, part, text, char_count
     """
+    text = clean_pdf_text(text)
+    text = remove_toc(text)
     # Step 1: find all candidate matches
     candidates = list(ARTICLE_PATTERN.finditer(text))
     log.info("Found %d candidate article boundaries (pre-filter)", len(candidates))
