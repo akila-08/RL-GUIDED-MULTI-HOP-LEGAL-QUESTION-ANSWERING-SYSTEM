@@ -1,7 +1,8 @@
 """
 pipeline/generator.py
 ---------------------
-Sub-answer generation using Claude (Anthropic) with temperature control.
+Sub-answer generation using Google Gemini (primary) with Anthropic Claude
+as fallback. Controlled by LLM_MODEL in config / .env.
 
 Sub-actions supported (selected automatically based on context):
   set_temperature      : use DEFAULT (0.3) for factual grounding
@@ -17,8 +18,6 @@ from __future__ import annotations
 import logging
 import re
 from typing import List, Dict, Optional
-
-import anthropic
 
 from core.config import Config
 from rl.actions import GenerateResult
@@ -57,41 +56,137 @@ implications. If the context lacks information, explicitly say so.
 ### Improved Answer:"""
 
 
-# ── Anthropic client singleton ────────────────────────────────────────────────
+# ── LLM backends ─────────────────────────────────────────────────────────────
 
-_client: Optional[anthropic.Anthropic] = None
+import time
+
+def _call_gemini(prompt: str, temperature: float, retries: int = 3) -> str:
+    """Call Google Gemini API using the new google.genai SDK with automatic retry for rate limits."""
+    try:
+        from google import genai
+        from google.genai import types
+        from google.genai.errors import APIError
+
+        client = genai.Client(api_key=Config.GEMINI_API_KEY)
+        
+        for attempt in range(retries):
+            try:
+                # Add a small base delay to help respect the 15 Requests Per Minute free tier limit
+                time.sleep(4) 
+                
+                response = client.models.generate_content(
+                    model=Config.LLM_MODEL,
+                    contents=f"{_SYSTEM_PROMPT}\n\n{prompt}",
+                    config=types.GenerateContentConfig(
+                        temperature=temperature,
+                        max_output_tokens=Config.GEN_MAX_TOKENS,
+                    ),
+                )
+                return response.text.strip()
+            except APIError as e:
+                # 429 means Resource Exhausted / Quota Limit
+                if e.code == 429 and attempt < retries - 1:
+                    wait_time = 25  # Wait 25 seconds before retrying
+                    log.warning(f"Rate limit hit! Sleeping for {wait_time}s before attempt {attempt+2}...")
+                    time.sleep(wait_time)
+                else:
+                    raise e
+
+    except Exception as e:
+        log.error("Gemini call failed: %s", e)
+        return ""
 
 
-def _get_client() -> anthropic.Anthropic:
-    global _client
-    if _client is None:
-        api_key = Config.ANTHROPIC_API_KEY
-        if not api_key:
-            raise RuntimeError(
-                "ANTHROPIC_API_KEY not set. Add it to your .env file."
-            )
-        _client = anthropic.Anthropic(api_key=api_key)
-    return _client
+def _call_openai(prompt: str, temperature: float) -> str:
+    """Call OpenAI API."""
+    try:
+        from openai import OpenAI
+        import os
+        if not os.getenv("OPENAI_API_KEY"):
+            raise RuntimeError("OPENAI_API_KEY not set.")
+            
+        client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+        response = client.chat.completions.create(
+            model=Config.LLM_MODEL,
+            messages=[
+                {"role": "system", "content": _SYSTEM_PROMPT},
+                {"role": "user", "content": prompt}
+            ],
+            temperature=temperature,
+            max_tokens=Config.GEN_MAX_TOKENS,
+        )
+        return response.choices[0].message.content.strip()
+    except Exception as e:
+        log.error("OpenAI call failed: %s", e)
+        return ""
+
+
+def _call_groq(prompt: str, temperature: float) -> str:
+    """Call Groq API (Fast Llama 3)."""
+    try:
+        from groq import Groq
+        import os
+        if not os.getenv("GROQ_API_KEY"):
+            raise RuntimeError("GROQ_API_KEY not set.")
+            
+        client = Groq(api_key=os.getenv("GROQ_API_KEY"))
+        
+        # Groq specific active models
+        model_name = os.getenv("LLM_MODEL", "llama-3.1-8b-instant")
+        if "gemini" in model_name or "claude" in model_name or "gpt" in model_name or "llama3-8b-8192" in model_name:
+            model_name = "llama-3.1-8b-instant"  # Automatically fix model name for Groq
+
+        response = client.chat.completions.create(
+            model=model_name,
+            messages=[
+                {"role": "system", "content": _SYSTEM_PROMPT},
+                {"role": "user", "content": prompt}
+            ],
+            temperature=temperature,
+            max_tokens=Config.GEN_MAX_TOKENS,
+        )
+        return response.choices[0].message.content.strip()
+    except Exception as e:
+        log.error("Groq call failed: %s", e)
+        return ""
+
+
+def _call_llm(prompt: str, temperature: float) -> str:
+    """
+    Route to the correct LLM backend based on config.
+
+    Priority:
+      1. If GROQ_API_KEY is set    → use Groq
+      2. If OPENAI_API_KEY is set  → use OpenAI
+      3. If GEMINI_API_KEY is set  → use Gemini
+      4. If ANTHROPIC_API_KEY set  → use Claude
+      5. None                      → Dummy Fallback
+    """
+    import os
+    if os.getenv("GROQ_API_KEY"):
+        result = _call_groq(prompt, temperature)
+        if result: return result
+
+    if Config.GEMINI_API_KEY:
+        result = _call_gemini(prompt, temperature)
+        if result: return result
+        # Gemini failed — try Claude if available
+        if Config.ANTHROPIC_API_KEY:
+            log.warning("Gemini failed, falling back to Anthropic Claude.")
+            return _call_anthropic(prompt, temperature)
+        return ""
+
+    if Config.ANTHROPIC_API_KEY:
+        return _call_anthropic(prompt, temperature)
+
+    log.error(
+        "No LLM API key configured. "
+        "Set OPENAI_API_KEY, GEMINI_API_KEY or ANTHROPIC_API_KEY in your .env file."
+    )
+    return ""
 
 
 # ── Core generation ───────────────────────────────────────────────────────────
-
-def _call_llm(prompt: str, temperature: float) -> str:
-    """Single LLM call; returns stripped text or empty string on error."""
-    try:
-        client  = _get_client()
-        message = client.messages.create(
-            model       = Config.LLM_MODEL,
-            max_tokens  = Config.GEN_MAX_TOKENS,
-            temperature = temperature,
-            system      = _SYSTEM_PROMPT,
-            messages    = [{"role": "user", "content": prompt}],
-        )
-        return message.content[0].text.strip()
-    except Exception as e:
-        log.error("LLM call failed: %s", e)
-        return ""
-
 
 def _is_bad_answer(answer: str) -> bool:
     """Heuristic: is the answer insufficient?"""
@@ -113,8 +208,8 @@ def _build_context(chunks: List[Dict]) -> str:
         return "No context retrieved."
     parts = []
     for i, c in enumerate(chunks, 1):
-        meta = c.get("metadata", {})
-        art  = meta.get("article_num", "?")
+        meta  = c.get("metadata", {})
+        art   = meta.get("article_num", "?")
         title = meta.get("title", "")[:60]
         text  = c.get("text", "")[:600]
         parts.append(f"[{i}] Article {art} – {title}\n{text}")
@@ -127,14 +222,13 @@ def _generate_one(
 ) -> tuple[str, float, bool]:
     """
     Generate answer for a single sub-question.
-
     Returns (answer_text, temperature_used, was_retried).
     """
-    context   = _build_context(chunks)
-    prompt    = _USER_TEMPLATE.format(context=context, sub_question=sub_question)
-    temp      = Config.GEN_TEMPERATURE_DEFAULT
-    answer    = _call_llm(prompt, temp)
-    retried   = False
+    context  = _build_context(chunks)
+    prompt   = _USER_TEMPLATE.format(context=context, sub_question=sub_question)
+    temp     = Config.GEN_TEMPERATURE_DEFAULT
+    answer   = _call_llm(prompt, temp)
+    retried  = False
 
     if _is_bad_answer(answer):
         log.info("First attempt insufficient — retrying with revised prompt.")
@@ -171,15 +265,12 @@ def generate(
     any_retried = False
 
     for i, sq in enumerate(sub_questions):
-        # Distribute chunks: each sub-question gets a window of chunks
         n_chunks = len(chunks)
         if n_chunks == 0:
             assigned_chunks: List[Dict] = []
         elif n_chunks <= Config.TOP_K_RERANK:
-            # All sub-questions share all chunks
             assigned_chunks = chunks
         else:
-            # Sliding window: each sub-question gets a proportional subset
             window = max(2, n_chunks // len(sub_questions))
             start  = (i * window) % n_chunks
             assigned_chunks = chunks[start: start + window]

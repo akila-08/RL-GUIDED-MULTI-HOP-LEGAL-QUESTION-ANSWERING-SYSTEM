@@ -119,9 +119,20 @@ def _load_classifier():
     """Load LegalBERT complexity classifier."""
     classifier_path = Config.CLASSIFIER_MODEL_PATH
     best_model_file = os.path.join(classifier_path, "best_model.pt")
+
+    # Smart Heuristic function to distinguish simple vs complex questions
+    def heuristic_score_fn(q: str) -> float:
+        q_lower = q.lower()
+        # Look for multi-hop trigger words as entire words
+        words = q_lower.replace("?", "").replace(".", "").split()
+        complex_keywords = {"difference", "compare", "between", "versus", "vs", "impact", "affect", "both", "and", "together"}
+        is_complex = any(kw in words for kw in complex_keywords) or len(words) > 12
+        return 0.8 if is_complex else 0.2
+
     if not os.path.exists(best_model_file):
-        log.warning("Classifier not found at %s — defaulting to score=0.7", classifier_path)
-        return None
+        log.warning("Classifier not found at %s — using Smart Heuristic instead of 0.7", classifier_path)
+        return heuristic_score_fn
+        
     try:
         import torch
         from transformers import AutoTokenizer
@@ -142,7 +153,7 @@ def _load_classifier():
         return score_fn
     except Exception as e:
         log.error("Failed to load classifier: %s", e)
-        return None
+        return heuristic_score_fn
 
 
 @app.on_event("startup")
@@ -303,10 +314,10 @@ async def ask(request: AskRequest):
     # Convert retrieved articles to Pydantic model
     retrieved_articles = [
         RetrievedArticle(
-            article_num  = a["article_num"],
-            title        = a["title"],
-            text_snippet = a["text_snippet"],
-            rerank_score = a["rerank_score"],
+            article_num  = a.get("article_num", "?"),
+            title        = a.get("title", ""),
+            text_snippet = a.get("text", a.get("text_snippet", "")),
+            rerank_score = a.get("rerank_score", 0.0),
         )
         for a in result.get("retrieved_articles", [])
     ]

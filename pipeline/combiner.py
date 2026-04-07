@@ -15,9 +15,7 @@ The RL environment chooses:
 from __future__ import annotations
 
 import logging
-from typing import List, Optional
-
-import anthropic
+from typing import List
 
 from core.config import Config
 from rl.actions import CombineResult
@@ -40,20 +38,6 @@ _SUMMARISE_USER = """\
 
 ### Final Answer (synthesised):"""
 
-_client: Optional[anthropic.Anthropic] = None
-
-
-def _get_client() -> anthropic.Anthropic:
-    global _client
-    if _client is None:
-        api_key = Config.ANTHROPIC_API_KEY
-        if not api_key:
-            raise RuntimeError("ANTHROPIC_API_KEY not set in .env")
-        _client = anthropic.Anthropic(api_key=api_key)
-    return _client
-
-
-# ── Sub-action implementations ────────────────────────────────────────────────
 
 def _concatenate(sub_answers: List[str], question: str) -> str:
     """
@@ -67,13 +51,13 @@ def _concatenate(sub_answers: List[str], question: str) -> str:
     if not parts:
         return "Unable to retrieve relevant information for this question."
     return "\n\n".join(parts)
-
-
 def _summarise(sub_answers: List[str], question: str) -> str:
     """
-    Uses Claude to synthesise sub-answers into one coherent final answer.
+    Uses LLM (Groq) to synthesise sub-answers into one coherent final answer.
     Falls back to concatenation if LLM call fails.
     """
+    import os
+
     # Filter vacuous answers
     valid = [a.strip() for a in sub_answers if a and "not found" not in a.lower()]
     if not valid:
@@ -88,15 +72,27 @@ def _summarise(sub_answers: List[str], question: str) -> str:
     )
 
     try:
-        client  = _get_client()
-        message = client.messages.create(
-            model       = Config.LLM_MODEL,
-            max_tokens  = Config.GEN_MAX_TOKENS,
-            temperature = Config.GEN_TEMPERATURE_DEFAULT,
-            system      = _SUMMARISE_SYSTEM,
-            messages    = [{"role": "user", "content": prompt}],
+        from groq import Groq
+        if not os.getenv("GROQ_API_KEY"):
+            raise RuntimeError("GROQ_API_KEY not set in .env")
+            
+        client = Groq(api_key=os.getenv("GROQ_API_KEY"))
+        
+        # Format model name correctly
+        model_name = os.getenv("LLM_MODEL", "llama-3.1-8b-instant")
+        if "gemini" in model_name or "claude" in model_name or "gpt" in model_name or "llama3-8b-8192" in model_name:
+            model_name = "llama-3.1-8b-instant"
+
+        response = client.chat.completions.create(
+            model=model_name,
+            max_tokens=Config.GEN_MAX_TOKENS,
+            temperature=Config.GEN_TEMPERATURE_DEFAULT,
+            messages=[
+                {"role": "system", "content": _SUMMARISE_SYSTEM},
+                {"role": "user", "content": prompt}
+            ],
         )
-        return message.content[0].text.strip()
+        return response.choices[0].message.content.strip()
     except Exception as e:
         log.warning("Summarisation LLM call failed (%s); falling back to concat.", e)
         return _concatenate(sub_answers, question)

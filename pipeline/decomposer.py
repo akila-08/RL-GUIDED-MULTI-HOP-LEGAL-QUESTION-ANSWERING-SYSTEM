@@ -21,6 +21,7 @@ Threshold   : configurable in Config (DECOMP_ROUGE_THRESH, DECOMP_COVERAGE_THRES
 
 from __future__ import annotations
 
+import os
 import re
 import logging
 from typing import List, Optional, Tuple
@@ -50,13 +51,25 @@ STOPWORDS = {
 def _get_t5():
     global _tokenizer, _t5_model
     if _tokenizer is None or _t5_model is None:
-        log.info("Loading T5 decomposer from: %s", Config.DECOMP_MODEL_PATH)
-        _tokenizer = AutoTokenizer.from_pretrained(Config.DECOMP_MODEL_PATH)
+        model_path = Config.DECOMP_MODEL_PATH
+
+        # Guard: if the folder doesn't exist, fail fast with a clear message
+        # so decompose() can catch it and use the rule-based fallback.
+        if not os.path.isdir(model_path):
+            raise FileNotFoundError(
+                f"T5 decomposer model not found at '{model_path}'. "
+                "Train the decomposer first (scripts/train_decomposer.py) "
+                "or place a fine-tuned Flan-T5 checkpoint there. "
+                "Falling back to rule-based decomposer."
+            )
+
+        log.info("Loading T5 decomposer from: %s", model_path)
+        _tokenizer = AutoTokenizer.from_pretrained(model_path)
         # Add special tokens that were added during training
         special_tokens = {"additional_special_tokens": ["<rule>", "<apply>"]}
         _tokenizer.add_special_tokens(special_tokens)
 
-        _t5_model = AutoModelForSeq2SeqLM.from_pretrained(Config.DECOMP_MODEL_PATH)
+        _t5_model = AutoModelForSeq2SeqLM.from_pretrained(model_path)
         _t5_model.resize_token_embeddings(len(_tokenizer))
         _t5_model.eval()
     return _tokenizer, _t5_model
@@ -195,14 +208,13 @@ def baseline_decompose(question: str) -> List[str]:
     Rule-based decomposer extracted from scripts/baseline_decomposer.py.
     Used as fallback when T5 quality is insufficient.
     """
-    import sys, os
-    sys.path.insert(0, os.path.join(Config.BASE_DIR, "scripts"))
     try:
-        from baseline_decomposer import dataset_style_decompose_v3
+        # Import the clean, standalone version of the heuristic rules
+        from pipeline.baseline_rules import dataset_style_decompose_v3
         result = dataset_style_decompose_v3(question)
         return result.get("sub_questions", [])
     except Exception as e:
-        log.error("Baseline decomposer failed: %s", e)
+        log.warning("Baseline decomposer unavailable (%s) — using ultimate fallback.", e)
         # Ultimate fallback: split question into 2 simple sub-questions
         return [
             f"What is the legal rule relevant to: {question}",
@@ -215,37 +227,45 @@ def baseline_decompose(question: str) -> List[str]:
 def decompose(question: str) -> DecomposeResult:
     """
     Main entry point. Attempts T5 decomposition; falls back to baseline
-    if quality check fails.
+    if quality check fails OR if T5 model is not available.
 
     Returns a DecomposeResult with sub_questions and evaluation metadata.
     """
-    # --- Step A: T5 attempt ---
-    sub_qs_t5 = t5_decompose(question)
-    rouge, coverage, is_good = evaluate_decomposition(question, sub_qs_t5)
+    # --- Step A: T5 attempt (skipped if model folder does not exist) ---
+    try:
+        sub_qs_t5 = t5_decompose(question)
+        rouge, coverage, is_good = evaluate_decomposition(question, sub_qs_t5)
 
-    if is_good:
+        if is_good:
+            log.info(
+                "T5 decomposition accepted: %d sub-qs (rouge=%.3f coverage=%.3f)",
+                len(sub_qs_t5), rouge, coverage,
+            )
+            return DecomposeResult(
+                sub_questions  = sub_qs_t5,
+                used_baseline  = False,
+                rouge_score    = rouge,
+                coverage_score = coverage,
+            )
+
         log.info(
-            "T5 decomposition accepted: %d sub-qs (rouge=%.3f coverage=%.3f)",
-            len(sub_qs_t5), rouge, coverage,
-        )
-        return DecomposeResult(
-            sub_questions   = sub_qs_t5,
-            used_baseline   = False,
-            rouge_score     = rouge,
-            coverage_score  = coverage,
+            "T5 quality below threshold (rouge=%.3f coverage=%.3f); using baseline.",
+            rouge, coverage,
         )
 
-    # --- Step B: Baseline fallback (re-decompose) ---
-    log.info(
-        "T5 quality below threshold (rouge=%.3f coverage=%.3f); using baseline.",
-        rouge, coverage,
-    )
+    except FileNotFoundError as e:
+        log.warning("T5 model unavailable — using rule-based fallback. (%s)", e)
+
+    except Exception as e:
+        log.error("T5 decomposition failed unexpectedly: %s — using baseline.", e)
+
+    # --- Step B: Baseline fallback (rule-based) ---
     sub_qs_base = baseline_decompose(question)
     rouge_b, cov_b, _ = evaluate_decomposition(question, sub_qs_base)
 
     return DecomposeResult(
-        sub_questions   = sub_qs_base,
-        used_baseline   = True,
-        rouge_score     = rouge_b,
-        coverage_score  = cov_b,
+        sub_questions  = sub_qs_base,
+        used_baseline  = True,
+        rouge_score    = rouge_b,
+        coverage_score = cov_b,
     )

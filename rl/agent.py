@@ -209,9 +209,19 @@ class PPOAgent:
     # Interaction
     # ------------------------------------------------------------------
 
-    def select_action(self, state: np.ndarray) -> Tuple[int, float, float]:
+    def select_action(
+        self,
+        state: np.ndarray,
+        action_mask: Optional[list] = None,
+    ) -> Tuple[int, float, float]:
         """
         Select action for one step (inference mode).
+
+        Parameters
+        ----------
+        state       : current state vector
+        action_mask : optional length-4 binary list.  Positions with 0 are
+                      masked out (logit set to -1e9) so they are never sampled.
 
         Returns
         -------
@@ -219,8 +229,18 @@ class PPOAgent:
         """
         state_t = torch.FloatTensor(state).unsqueeze(0).to(self.device)
         with torch.no_grad():
-            action, log_prob, value = self.network.get_action(state_t)
-        return action, log_prob.item(), value.item()
+            logits, value = self.network(state_t)
+
+            # Apply mask: invalid actions get logit = -1e9
+            if action_mask is not None:
+                mask_t = torch.FloatTensor(action_mask).to(self.device)  # (4,)
+                logits = logits + (1.0 - mask_t) * -1e9
+
+            dist     = Categorical(logits=logits)
+            action   = dist.sample()
+            log_prob = dist.log_prob(action)
+
+        return action.item(), log_prob.item(), value.squeeze(-1).item()
 
     def store(
         self,
@@ -302,9 +322,25 @@ class PPOAgent:
     # ------------------------------------------------------------------
 
     def save(self, path: Optional[str] = None) -> str:
-        path = path or Config.RL_MODEL_PATH
-        os.makedirs(path, exist_ok=True)
-        ckpt_file = os.path.join(path, "ppo_agent.pt")
+        """
+        Save checkpoint.
+
+        path can be:
+          - None          → saves to Config.RL_MODEL_PATH/ppo_agent.pt
+          - a directory   → saves to <path>/ppo_agent.pt
+          - a .pt file    → saves directly to that file
+        """
+        if path is None:
+            dir_path  = Config.RL_MODEL_PATH
+            ckpt_file = os.path.join(dir_path, "ppo_agent.pt")
+        elif path.endswith(".pt"):
+            dir_path  = os.path.dirname(path) or Config.RL_MODEL_PATH
+            ckpt_file = path
+        else:
+            dir_path  = path
+            ckpt_file = os.path.join(path, "ppo_agent.pt")
+
+        os.makedirs(dir_path, exist_ok=True)
         torch.save({
             "network_state":   self.network.state_dict(),
             "optimizer_state": self.optimizer.state_dict(),

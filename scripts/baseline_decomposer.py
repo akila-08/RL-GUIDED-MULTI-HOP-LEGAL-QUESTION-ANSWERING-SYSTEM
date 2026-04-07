@@ -729,7 +729,7 @@ print(sample["input_text"])
 print()
 print(sample["target_text"])
 
-! python -m pip install transformers datasets sentencepiece accelerate -q
+# pip install transformers datasets sentencepiece accelerate  (run manually if needed)
 
 train_df = pd.read_csv("data/train_t5_v3.csv")
 test_df = pd.read_csv("data/test_t5_v3.csv")

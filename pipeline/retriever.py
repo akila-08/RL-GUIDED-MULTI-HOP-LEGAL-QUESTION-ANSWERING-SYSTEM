@@ -142,7 +142,11 @@ def _build_bm25_index() -> Tuple[object, List[Dict]]:
             "metadata": result["metadatas"][i] if result["metadatas"] else {},
         })
 
-    tokenized = [tokenize_fn(d["text"]) for d in docs_raw]
+    # Inject metadata into BM25 tokenization so words like "Article 1" are searchable!
+    tokenized = [
+        tokenize_fn(f"Article {d.get('metadata', {}).get('article_num', '')} {d.get('metadata', {}).get('title', '')} {d['text']}") 
+        for d in docs_raw
+    ]
     _bm25_index = BM25Okapi(tokenized, k1=Config.BM25_K1, b=Config.BM25_B)
     _bm25_docs  = docs_raw
     log.info("BM25 index built: %d docs", len(_bm25_docs))
@@ -180,17 +184,47 @@ def _dense_retrieve(query: str) -> List[Dict]:
     results  = collection.query(
         query_embeddings=[q_vec],
         n_results=min(Config.TOP_K_DENSE, collection.count()),
-        include=["documents", "metadatas", "distances", "ids"],
+        include=["documents", "metadatas", "distances"],  # ids returned automatically
     )
 
     candidates = []
     for i, doc_id in enumerate(results["ids"][0]):
         candidates.append({
-            "id":            doc_id,
-            "text":          results["documents"][0][i],
-            "metadata":      results["metadatas"][0][i] if results["metadatas"] else {},
-            "dense_score":   1.0 - float(results["distances"][0][i]),  # cosine→similarity
+            "id":          doc_id,
+            "text":        results["documents"][0][i],
+            "metadata":    results["metadatas"][0][i] if results["metadatas"] else {},
+            "dense_score": 1.0 - float(results["distances"][0][i]),  # cosine→similarity
         })
+        
+    # GUARANTEED METADATA FETCH (Self-Querying)
+    # If the user explicitly asks for "Article X", guarantee it is retrieved!
+    matches = re.findall(r'article\s+(\d+[A-Z]{0,2})', query, re.IGNORECASE)
+    if matches:
+        unique_matches = list(set(matches))
+        where_clause = None
+        if len(unique_matches) == 1:
+            where_clause = {"article_num": unique_matches[0]}
+        else:
+            where_clause = {"$or": [{"article_num": m} for m in unique_matches]}
+            
+        try:
+            meta_results = collection.get(
+                where=where_clause,
+                include=["documents", "metadatas"]
+            )
+            if meta_results and meta_results["ids"]:
+                log.info(f"Hard-retrieved explicit articles via metadata: {unique_matches}")
+                for i, doc_id in enumerate(meta_results["ids"]):
+                    if not any(c["id"] == doc_id for c in candidates):
+                        candidates.append({
+                            "id":          doc_id,
+                            "text":        meta_results["documents"][i],
+                            "metadata":    meta_results["metadatas"][i] if meta_results["metadatas"] else {},
+                            "dense_score": 1.0,  # Exact match synthetic score
+                        })
+        except Exception as e:
+            log.warning(f"Failed explicit metadata fetch: {e}")
+
     return candidates
 
 
@@ -207,7 +241,8 @@ def _rerank(query: str, candidates: List[Dict]) -> List[Dict]:
         return []
 
     cross_enc = _get_cross_enc()
-    pairs     = [(query, c["text"][:500]) for c in candidates]   # truncate for speed
+    # Inject metadata so cross-encoder can match references like "Article 1"
+    pairs     = [(query, f"Article {c.get('metadata', {}).get('article_num', '?')} - {c.get('metadata', {}).get('title', '')}\n{c['text'][:500]}") for c in candidates]
     scores    = cross_enc.predict(pairs)
 
     ranked = sorted(zip(candidates, scores), key=lambda x: x[1], reverse=True)

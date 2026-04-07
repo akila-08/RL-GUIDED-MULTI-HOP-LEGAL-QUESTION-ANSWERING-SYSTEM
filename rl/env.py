@@ -94,6 +94,25 @@ class LegalQAEnv:
         )
         return self._get_state()
 
+    def get_action_mask(self) -> list:
+        """
+        Return a binary mask of length 4 enforcing valid step ordering.
+
+        Valid sequence:
+          step 0 → DECOMPOSE  [1, 0, 0, 0]
+          step 1 → RETRIEVE   [0, 1, 0, 0]
+          step 2 → GENERATE   [0, 0, 1, 0]
+          step 3+ → COMBINE   [0, 0, 0, 1]
+        """
+        if self.step_count == 0:
+            return [1, 0, 0, 0]
+        elif self.step_count == 1:
+            return [0, 1, 0, 0]
+        elif self.step_count == 2:
+            return [0, 0, 1, 0]
+        else:
+            return [0, 0, 0, 1]
+
     def step(
         self, macro_action: int
     ) -> Tuple[np.ndarray, float, bool, Dict[str, Any]]:
@@ -146,15 +165,8 @@ class LegalQAEnv:
             self.combine_result   = result
             self.final_answer     = result.final_answer
 
-        # ── Compute reward ──
-        rewards_dict = compute_all_rewards(
-            question     = self.question,
-            final_answer = self.final_answer or " ".join(self.sub_answers),
-            sub_questions= self.sub_questions,
-            doc_texts    = self.doc_texts,
-            gold_answer  = self.gold_answer,
-        )
-        R = combined_reward(rewards_dict)
+        # ── Step-wise shaped reward (dense signal for PPO) ──
+        R = self._compute_step_reward(result)
 
         # ── Advance step ──
         self.step_count += 1
@@ -168,16 +180,25 @@ class LegalQAEnv:
 
         next_state = self._get_state()
 
+        # Individual rewards (for logging/snapshots, computed lazily)
+        rewards_dict = compute_all_rewards(
+            question     = self.question,
+            final_answer = self.final_answer or " ".join(self.sub_answers),
+            sub_questions= self.sub_questions,
+            doc_texts    = self.doc_texts,
+            gold_answer  = self.gold_answer,
+        )
+
         info = {
-            "action":           action_name,
-            "log":              log_msg,
+            "action":             action_name,
+            "log":                log_msg,
             "individual_rewards": rewards_dict,
-            "combined_reward":  R,
-            "step":             self.step_count,
-            "done":             done,
-            "final_answer":     self.final_answer,
-            "sub_questions":    self.sub_questions,
-            "actions_taken":    self.actions_taken,
+            "step_reward":        R,
+            "step":               self.step_count,
+            "done":               done,
+            "final_answer":       self.final_answer,
+            "sub_questions":      self.sub_questions,
+            "actions_taken":      self.actions_taken,
         }
 
         log.info(
@@ -189,6 +210,60 @@ class LegalQAEnv:
     # ──────────────────────────────────────────────────────────────────────────
     # Internal helpers
     # ──────────────────────────────────────────────────────────────────────────
+
+    def _compute_step_reward(self, result) -> float:
+        """
+        Dense step-wise reward shaping.
+
+        Instead of always calling combined_reward() (which requires a final
+        answer to be non-empty), we give action-specific intermediate signals
+        so PPO gets learning signal at every step:
+
+          DECOMPOSE  → 0.2 × coverage_score
+          RETRIEVE   → 0.3 × (at least one chunk retrieved)
+          GENERATE   → 0.2 × answer_length_score
+          COMBINE    → full combined_reward() on final answer
+        """
+        if isinstance(result, DecomposeResult):
+            # Reward proportional to how well sub-questions cover the question
+            coverage = getattr(result, "coverage_score", 0.0)
+            R = 0.2 * float(coverage)
+            log.debug("DECOMPOSE step reward: %.4f (coverage=%.3f)", R, coverage)
+            return R
+
+        elif isinstance(result, RetrieveResult):
+            # Binary reward for retrieving at least one chunk
+            num_chunks = len(result.chunks)
+            R = 0.3 * float(num_chunks > 0)
+            log.debug("RETRIEVE step reward: %.4f (chunks=%d)", R, num_chunks)
+            return R
+
+        elif isinstance(result, GenerateResult):
+            # Reward based on non-empty, reasonably long answers
+            answers   = result.sub_answers
+            if not answers:
+                return 0.0
+            avg_len   = sum(len(a.split()) for a in answers) / len(answers)
+            # Normalise: 0 words → 0, 50+ words → 1.0; clipped
+            length_score = float(np.clip(avg_len / 50.0, 0.0, 1.0))
+            R = 0.2 * length_score
+            log.debug("GENERATE step reward: %.4f (avg_len=%.1f)", R, avg_len)
+            return R
+
+        elif isinstance(result, CombineResult):
+            # Full combined reward at the terminal step
+            rewards_dict = compute_all_rewards(
+                question     = self.question,
+                final_answer = result.final_answer,
+                sub_questions= self.sub_questions,
+                doc_texts    = self.doc_texts,
+                gold_answer  = self.gold_answer,
+            )
+            R = combined_reward(rewards_dict)
+            log.debug("COMBINE step reward: %.4f", R)
+            return R
+
+        return 0.0
 
     def _reset_state(self):
         self.question          = ""
