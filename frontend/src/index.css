@@ -1,0 +1,95 @@
+/* ====================================================
+   Global Design System v2 — Legal AI HRL Chatbot
+   ==================================================== */
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg-base:        #050508;
+  --bg-surface:     #0a0b12;
+  --bg-card:        rgba(255,255,255,0.028);
+  --bg-card-hover:  rgba(255,255,255,0.052);
+  --border:         rgba(255,255,255,0.07);
+  --border-accent:  rgba(139,92,246,0.45);
+
+  --accent:         #7c3aed;
+  --accent-2:       #5b21b6;
+  --accent-light:   #a78bfa;
+  --accent-glow:    rgba(124,58,237,0.4);
+  --gold:           #d97706;
+  --gold-light:     #fbbf24;
+  --green:          #059669;
+  --green-light:    #34d399;
+  --red:            #dc2626;
+  --blue:           #2563eb;
+  --blue-light:     #60a5fa;
+
+  --text-1: #f8fafc;
+  --text-2: #94a3b8;
+  --text-3: #475569;
+  --text-4: #1e293b;
+
+  --radius-xs: 4px;
+  --radius-sm: 8px;
+  --radius-md: 14px;
+  --radius-lg: 20px;
+  --radius-xl: 28px;
+
+  --font: 'Inter', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+
+  --shadow-glow: 0 0 40px rgba(124,58,237,0.12);
+  --shadow-card: 0 4px 24px rgba(0,0,0,0.35);
+}
+
+html, body, #root { height: 100%; width: 100%; }
+
+body {
+  font-family: var(--font);
+  background: var(--bg-base);
+  color: var(--text-1);
+  overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ── Scrollbars ── */
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(124,58,237,0.3); border-radius: 99px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(124,58,237,0.55); }
+
+/* ── Keyframes ── */
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(16px) scale(0.99); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+@keyframes dotBounce {
+  0%, 80%, 100% { transform: translateY(0); opacity: 0.35; }
+  40%           { transform: translateY(-7px); opacity: 1; }
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+@keyframes pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50%       { opacity: 0.55; transform: scale(0.82); }
+}
+@keyframes shimmer {
+  0%   { background-position: -200% center; }
+  100% { background-position:  200% center; }
+}
+@keyframes gradFlow {
+  0%   { background-position: 0% 50%; }
+  50%  { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+@keyframes orb1 {
+  0%, 100% { transform: translate(0,0) scale(1); }
+  33%       { transform: translate(40px,-30px) scale(1.05); }
+  66%       { transform: translate(-20px,20px) scale(0.97); }
+}
+@keyframes orb2 {
+  0%, 100% { transform: translate(0,0) scale(1); }
+  33%       { transform: translate(-50px,30px) scale(0.97); }
+  66%       { transform: translate(30px,-40px) scale(1.04); }
+}
