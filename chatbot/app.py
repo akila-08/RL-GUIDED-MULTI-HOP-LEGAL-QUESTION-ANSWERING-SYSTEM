@@ -72,10 +72,6 @@ class AskRequest(BaseModel):
         max_length=1000,
         example="How do Articles 14 and 16(2) together ensure fairness in public employment?",
     )
-    gold_answer: Optional[str] = Field(
-        None,
-        description="Optional gold answer for reward computation (evaluation mode).",
-    )
 
 
 class RetrievedArticle(BaseModel):
@@ -173,7 +169,7 @@ async def startup():
 
 # ── Simple question path ──────────────────────────────────────────────────────
 
-def _handle_simple(question: str, gold_answer: Optional[str]) -> Dict[str, Any]:
+def _handle_simple(question: str) -> Dict[str, Any]:
     """Single-hop: retrieve → generate, no RL agent, no decomposition."""
     import pipeline.retriever as retriever_mod
     import pipeline.generator as generator_mod
@@ -188,8 +184,7 @@ def _handle_simple(question: str, gold_answer: Optional[str]) -> Dict[str, Any]:
         question      = question,
         final_answer  = final_answer,
         sub_questions = [question],
-        doc_texts     = retrieve_result.texts,
-        gold_answer   = gold_answer,
+        doc_texts     = retrieve_result.texts
     )
 
     retrieved_articles = [
@@ -216,7 +211,7 @@ def _handle_simple(question: str, gold_answer: Optional[str]) -> Dict[str, Any]:
 
 # ── RL-guided complex question path ──────────────────────────────────────────
 
-def _handle_complex(question: str, gold_answer: Optional[str]) -> Dict[str, Any]:
+def _handle_complex(question: str) -> Dict[str, Any]:
     """
     RL-guided multi-hop pipeline.
     Follows: DECOMPOSE → RETRIEVE → GENERATE → COMBINE
@@ -225,7 +220,7 @@ def _handle_complex(question: str, gold_answer: Optional[str]) -> Dict[str, Any]
     env   = _env
     agent = _agent
 
-    state = env.reset(question, gold_answer=gold_answer)
+    state = env.reset(question)
 
     for action_id in [
         MacroAction.DECOMPOSE,
@@ -302,9 +297,9 @@ async def ask(request: AskRequest):
     # ── Route to simple or complex handler ──
     try:
         if is_complex:
-            result = _handle_complex(question, request.gold_answer)
+            result = _handle_complex(question)
         else:
-            result = _handle_simple(question, request.gold_answer)
+            result = _handle_simple(question)
     except Exception as e:
         log.error("Pipeline error: %s", e, exc_info=True)
         raise HTTPException(status_code=500, detail=f"Pipeline error: {str(e)}")

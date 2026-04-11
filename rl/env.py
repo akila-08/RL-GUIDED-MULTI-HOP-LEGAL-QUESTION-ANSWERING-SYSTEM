@@ -66,8 +66,7 @@ class LegalQAEnv:
 
     def reset(
         self,
-        question: str,
-        gold_answer: Optional[str] = None,
+        question: str
     ) -> np.ndarray:
         """
         Start a new episode.
@@ -76,7 +75,7 @@ class LegalQAEnv:
         """
         self._reset_state()
         self.question    = question.strip()
-        self.gold_answer = gold_answer
+
 
         # Get complexity score from classifier (or default)
         if self.classifier is not None:
@@ -185,8 +184,7 @@ class LegalQAEnv:
             question     = self.question,
             final_answer = self.final_answer or " ".join(self.sub_answers),
             sub_questions= self.sub_questions,
-            doc_texts    = self.doc_texts,
-            gold_answer  = self.gold_answer,
+            doc_texts    = self.doc_texts
         )
 
         info = {
@@ -256,8 +254,7 @@ class LegalQAEnv:
                 question     = self.question,
                 final_answer = result.final_answer,
                 sub_questions= self.sub_questions,
-                doc_texts    = self.doc_texts,
-                gold_answer  = self.gold_answer,
+                doc_texts    = self.doc_texts
             )
             R = combined_reward(rewards_dict)
             log.debug("COMBINE step reward: %.4f", R)
@@ -267,7 +264,6 @@ class LegalQAEnv:
 
     def _reset_state(self):
         self.question          = ""
-        self.gold_answer       = None
         self.complexity_score  = 0.7
         self.step_count        = 0
         self.cumulative_reward = 0.0
@@ -306,8 +302,7 @@ class LegalQAEnv:
             question      = self.question,
             final_answer  = self.final_answer or " ".join(self.sub_answers),
             sub_questions = self.sub_questions,
-            doc_texts     = self.doc_texts,
-            gold_answer   = self.gold_answer,
+            doc_texts     = self.doc_texts
         )
         retrieved_meta = []
         if self.retrieve_result:

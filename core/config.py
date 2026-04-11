@@ -6,7 +6,7 @@ load_dotenv()
 class Config:
     # ── Paths ──────────────────────────────────────────────
     BASE_DIR    = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    PDF_PATH    = os.getenv("PDF_PATH",    os.path.join(BASE_DIR, "data", "constitution_of_india.pdf"))
+    PDF_PATH    = os.getenv("PDF_PATH",    os.path.join(BASE_DIR, "data", "constitution_of_india_articles.pdf"))
     DB_PATH     = os.getenv("DB_PATH",     os.path.join(BASE_DIR, "db",   "constitution_db"))
     LOG_PATH    = os.getenv("LOG_PATH",    os.path.join(BASE_DIR, "logs", "ingestion.log"))
 
@@ -55,7 +55,8 @@ class Config:
     GEN_TEMPERATURE_DEFAULT = float(os.getenv("GEN_TEMPERATURE_DEFAULT", "0.3"))
     GEN_TEMPERATURE_RETRY   = float(os.getenv("GEN_TEMPERATURE_RETRY",   "0.7"))
     GEN_MAX_TOKENS          = int(os.getenv("GEN_MAX_TOKENS", "512"))
-    MAX_ANSWER_LEN          = int(os.getenv("MAX_ANSWER_LEN", "1000"))   # for conciseness reward
+    MAX_SUB_ANSWER_LEN      = int(os.getenv("MAX_SUB_ANSWER_LEN", "700"))  
+    MAX_FINAL_ANSWER_LEN    = int(os.getenv("MAX_FINAL_ANSWER_LEN", "1500"))
 
     # ── RL Agent ──────────────────────────────────────────
     RL_STATE_DIM   = int(os.getenv("RL_STATE_DIM",  "1538"))  # 4×384 + 2
@@ -70,14 +71,14 @@ class Config:
     RL_MODEL_PATH  = os.getenv("RL_MODEL_PATH", os.path.join(BASE_DIR, "rl_model"))
 
     # ── Reward weights (must sum to 1.0) ──────────────────
-    RW_CORRECTNESS    = float(os.getenv("RW_CORRECTNESS",    "0.20"))
+    RW_GROUNDEDNESS   = float(os.getenv("RW_GROUNDEDNESS",   "0.25"))
+    RW_ENTAILMENT     = float(os.getenv("RW_ENTAILMENT",     "0.20"))
+    RW_QUERY_ALIGN    = float(os.getenv("RW_QUERY_ALIGN",    "0.20"))
     RW_RETRIEVAL      = float(os.getenv("RW_RETRIEVAL",      "0.15"))
-    RW_HALLUCINATION  = float(os.getenv("RW_HALLUCINATION",  "0.15"))  # penalty weight
     RW_ENTITY         = float(os.getenv("RW_ENTITY",         "0.10"))
-    RW_ENTAILMENT     = float(os.getenv("RW_ENTAILMENT",     "0.15"))
-    RW_FLUENCY        = float(os.getenv("RW_FLUENCY",        "0.10"))
-    RW_CONCISENESS    = float(os.getenv("RW_CONCISENESS",    "0.05"))
-    RW_QUERY_ALIGN    = float(os.getenv("RW_QUERY_ALIGN",    "0.10"))
+    RW_DECOMPOSITION  = float(os.getenv("RW_DECOMPOSITION",  "0.05"))
+    RW_FLUENCY        = float(os.getenv("RW_FLUENCY",        "0.03"))
+    RW_CONCISENESS    = float(os.getenv("RW_CONCISENESS",    "0.02"))
 
     # ── Chunker ────────────────────────────────────────────
     MIN_CHUNK_CHARS = int(os.getenv("MIN_CHUNK_CHARS", "30"))

@@ -46,3 +46,6 @@ torch>=2.2.0
 # Training utils
 numpy>=1.26.0
 tqdm>=4.66.0
+
+matplotlib
+groq
