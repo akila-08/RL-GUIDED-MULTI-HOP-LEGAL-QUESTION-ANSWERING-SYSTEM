@@ -108,39 +108,28 @@
   color: #475569;
 }
 
-/* Sub-questions */
+/* Sub-questions — natural plain style */
 .subQList {
   padding-left: 0;
   list-style: none;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 5px;
 }
 .subQItem {
-  display: flex; align-items: flex-start; gap: 9px;
-  font-size: 0.79rem;
+  font-size: 0.8rem;
   color: #cbd5e1;
-  line-height: 1.55;
-  padding: 8px 12px;
+  line-height: 1.6;
+  padding: 7px 13px;
   border-radius: 10px;
-  background: rgba(124,58,237,0.04);
-  border: 1px solid rgba(124,58,237,0.1);
-  counter-increment: subq;
+  background: rgba(255,255,255,0.025);
+  border-left: 2px solid rgba(167,139,250,0.35);
+  transition: background 0.18s ease, border-color 0.18s ease;
 }
-.subQItem::before {
-  content: counter(subq);
-  font-size: 0.6rem;
-  font-weight: 800;
-  width: 18px; height: 18px;
-  border-radius: 50%;
-  background: linear-gradient(135deg, #7c3aed, #5b21b6);
-  color: white;
-  display: flex; align-items: center; justify-content: center;
-  flex-shrink: 0;
-  margin-top: 1px;
-  font-family: 'JetBrains Mono', monospace;
+.subQItem:hover {
+  background: rgba(124,58,237,0.06);
+  border-left-color: rgba(167,139,250,0.7);
 }
-.subQList { counter-reset: subq; }
 
 .articleGrid { display: flex; flex-direction: column; gap: 7px; }
 

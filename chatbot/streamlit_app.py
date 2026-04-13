@@ -55,36 +55,36 @@ for msg in st.session_state.messages:
             
             # Show badge for complex vs simple
             if meta.get("is_complex"):
-                st.markdown('<span class="status-badge">🔄 Multi-Hop HRL Active</span>', unsafe_allow_html=True)
+                st.markdown('<span class="status-badge"> Multi-Hop HRL Active</span>', unsafe_allow_html=True)
             else:
-                st.markdown('<span class="status-badge">⚡ Single-Hop Active</span>', unsafe_allow_html=True)
+                st.markdown('<span class="status-badge"> Single-Hop Active</span>', unsafe_allow_html=True)
                 
-            with st.expander("🔍 View Agent's Internal Thought Process"):
+            with st.expander(" View Agent's Internal Thought Process"):
                 st.write(f"**Complexity Score**: {meta.get('complexity_score', 0)}")
                 st.write(f"**Actions Taken**: {' → '.join(meta.get('actions_taken', []))}")
                 
                 # Decomposed questions
                 if meta.get("sub_questions"):
-                    st.markdown("##### 📝 1. Decomposed Questions")
+                    st.markdown("#####  1. Decomposed Questions")
                     for sq in meta.get("sub_questions", []):
                         st.write(f"- {sq}")
                         
                 # Retrieved Articles
                 if meta.get("retrieved_articles"):
-                    st.markdown("##### 📚 2. Retrieved Constitution Articles")
+                    st.markdown("#####  2. Retrieved Constitution Articles")
                     for art in meta.get("retrieved_articles", []):
                         st.markdown(f"**Article {art.get('article_num')}**: {art.get('title')}")
                         st.caption(f"{art.get('text_snippet')}...")
                 
                 # Sub-answers
                 if meta.get("sub_answers"):
-                    st.markdown("##### ⚙️ 3. Generated Sub-answers")
+                    st.markdown("#####  3. Generated Sub-answers")
                     for sa in meta.get("sub_answers", []):
                         st.info(sa)
                 
                 # Rewards
                 if meta.get("rewards"):
-                    st.markdown("##### 🏆 4. RL Rewards")
+                    st.markdown("#####  4. RL Rewards")
                     st.markdown(f"Combined Reward: <span class='reward-text'>+{meta.get('combined_reward', 0)}</span>", unsafe_allow_html=True)
                     st.json(meta.get("rewards", {}))
 
@@ -122,31 +122,31 @@ if prompt := st.chat_input("E.g., What is the difference between Article 14 and 
                     
                     # Optional: display internal logic immediately for this turn
                     if data.get("is_complex"):
-                        st.markdown('<span class="status-badge">🔄 Multi-Hop HRL Active</span>', unsafe_allow_html=True)
+                        st.markdown('<span class="status-badge"> Multi-Hop HRL Active</span>', unsafe_allow_html=True)
                     else:
-                        st.markdown('<span class="status-badge">⚡ Single-Hop Active</span>', unsafe_allow_html=True)
+                        st.markdown('<span class="status-badge"> Single-Hop Active</span>', unsafe_allow_html=True)
 
-                    with st.expander("🔍 View Agent's Internal Thought Process"):
+                    with st.expander(" View Agent's Internal Thought Process"):
                         st.write(f"**Complexity Score**: {metadata['complexity_score']}")
                         st.write(f"**Actions Taken**: {' → '.join(metadata['actions_taken'])}")
                         # Decomposed questions
                         if metadata["sub_questions"]:
-                            st.markdown("##### 📝 1. Decomposed Questions")
+                            st.markdown("#####  1. Decomposed Questions")
                             for sq in metadata["sub_questions"]:
                                 st.write(f"- {sq}")
                         # Retrieved Articles
                         if metadata["retrieved_articles"]:
-                            st.markdown("##### 📚 2. Retrieved Constitution Articles")
+                            st.markdown("#####  2. Retrieved Constitution Articles")
                             for art in metadata["retrieved_articles"]:
                                 st.markdown(f"**Article {art.get('article_num')}**: {art.get('title')}")
                                 st.caption(f"{art.get('text_snippet')}...")
                         # Sub-answers
                         if metadata["sub_answers"]:
-                            st.markdown("##### ⚙️ 3. Generated Sub-answers")
+                            st.markdown("#####  3. Generated Sub-answers")
                             for sa in metadata["sub_answers"]:
                                 st.info(sa)
                         # Rewards
-                        st.markdown("##### 🏆 4. RL Rewards")
+                        st.markdown("#####  4. RL Rewards")
                         st.markdown(f"Combined Reward: <span class='reward-text'>+{metadata['combined_reward']}</span>", unsafe_allow_html=True)
                     
                     # 3. Save assistant response logic to history
