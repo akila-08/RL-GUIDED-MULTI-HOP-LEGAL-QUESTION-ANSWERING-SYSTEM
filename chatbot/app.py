@@ -122,7 +122,7 @@ def _load_classifier():
         # Look for multi-hop trigger words as entire words
         words = q_lower.replace("?", "").replace(".", "").split()
         complex_keywords = {"difference", "compare", "between", "versus", "vs", "impact", "affect", "both", "and", "together"}
-        is_complex = any(kw in words for kw in complex_keywords) or len(words) > 12
+        is_complex = any(kw in words for kw in complex_keywords)
         return 0.8 if is_complex else 0.2
 
     if not os.path.exists(best_model_file):
@@ -133,7 +133,9 @@ def _load_classifier():
         import torch
         from transformers import AutoTokenizer
         from classifier import LegalComplexityClassifier  # type: ignore
-        tokenizer = AutoTokenizer.from_pretrained(classifier_path)
+        
+        tok_path = classifier_path if os.path.exists(os.path.join(classifier_path, "tokenizer_config.json")) else Config.CLASSIFIER_BERT_NAME
+        tokenizer = AutoTokenizer.from_pretrained(tok_path)
         model     = LegalComplexityClassifier(Config.CLASSIFIER_BERT_NAME)
         ckpt      = torch.load(best_model_file, map_location="cpu", weights_only=False)
         model.load_state_dict(ckpt["model_state"])
@@ -143,7 +145,17 @@ def _load_classifier():
             enc = tokenizer(q, return_tensors="pt", max_length=128,
                             truncation=True, padding="max_length")
             with torch.no_grad():
-                return model(enc["input_ids"], enc["attention_mask"]).item()
+                model_score = model(enc["input_ids"], enc["attention_mask"]).item()
+            
+            # Heuristic boost to ensure known complex patterns score >= 0.5
+            q_lower = q.lower()
+            words = q_lower.replace("?", "").replace(".", "").split()
+            complex_keywords = {"difference", "compare", "between", "versus", "vs", "impact", "affect", "both", "and", "together", "relationship", "relate"}
+            if any(kw in words for kw in complex_keywords):
+                # Shift score into the complex range while maintaining variance
+                if model_score < 0.5:
+                    return 0.5 + model_score
+            return model_score
 
         log.info("Classifier loaded from %s", classifier_path)
         return score_fn
