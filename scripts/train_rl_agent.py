@@ -271,7 +271,7 @@ def train(
             continue
 
         # ── Episode rollout ────────────────────────────────────────────────
-        state     = env.reset(question, gold_answer=gold)
+        state     = env.reset(question)
         ep_reward = 0.0
 
         for step_idx in range(len(FIXED_SEQUENCE)):
@@ -335,11 +335,11 @@ def train(
 
         # ── Checkpoint ─────────────────────────────────────────────────────
         if ep % save_every == 0:
-            agent.save()
+            agent.save(ckpt_path)
             log.info("Checkpoint saved at episode %d", ep)
 
     # ── Final save ─────────────────────────────────────────────────────────────
-    agent.save()
+    agent.save(ckpt_path)
     log.info("Training complete. Model saved.")
     log.info(
         "Mean reward (all episodes): %.4f",

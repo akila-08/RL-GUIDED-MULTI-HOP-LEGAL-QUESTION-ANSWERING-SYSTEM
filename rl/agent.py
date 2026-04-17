@@ -349,12 +349,12 @@ class PPOAgent:
         return ckpt_file
 
     def load(self, path: Optional[str] = None) -> None:
-        path = path or Config.RL_MODEL_PATH
-        ckpt_file = os.path.join(path, "ppo_agent.pt")
+        dir_path  = path or Config.RL_MODEL_PATH
+        ckpt_file = os.path.join(dir_path, Config.RL_MODEL_FILENAME)
         if not os.path.exists(ckpt_file):
             log.warning("No checkpoint found at %s — starting fresh.", ckpt_file)
             return
-        ckpt = torch.load(ckpt_file, map_location=self.device)
+        ckpt = torch.load(ckpt_file, map_location=self.device, weights_only=False)
         self.network.load_state_dict(ckpt["network_state"])
         self.optimizer.load_state_dict(ckpt["optimizer_state"])
         log.info("PPOAgent loaded ← %s", ckpt_file)

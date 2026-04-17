@@ -77,15 +77,29 @@ class LegalQAEnv:
         self.question    = question.strip()
 
 
-        # Get complexity score from classifier (or default)
+        # Get raw score from classifier (or default)
         if self.classifier is not None:
             try:
-                self.complexity_score = float(self.classifier(question))
+                raw_score = float(self.classifier(question))
             except Exception as e:
                 log.warning("Classifier error: %s — defaulting to 0.7", e)
-                self.complexity_score = 0.7
+                raw_score = 0.7
         else:
-            self.complexity_score = 0.7
+            raw_score = 0.7
+
+        # Boost complexity based on question type.
+        # LegalBERT was trained mostly on simple/complex labels; it under-estimates
+        # the reasoning load of comparative and multi-hop conditional questions.
+        from pipeline.baseline_rules import infer_question_type
+        q_type = infer_question_type(question)
+        FLOOR = {"comparative": 0.80, "conditional": 0.65, "analytical": 0.50}
+        floor = FLOOR.get(q_type, 0.50)
+        self.complexity_score = max(raw_score, floor)
+        if self.complexity_score != raw_score:
+            log.info(
+                "Complexity boosted: %.3f → %.3f (q_type=%s)",
+                raw_score, self.complexity_score, q_type,
+            )
 
         log.info(
             "Env reset | question='%s…' | complexity=%.3f",

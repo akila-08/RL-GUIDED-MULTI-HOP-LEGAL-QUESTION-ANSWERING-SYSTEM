@@ -22,6 +22,7 @@ class Config:
     ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY")
     LLM_MODEL         = os.getenv("LLM_MODEL", "claude-3-5-sonnet-20241022")
     GEMINI_API_KEY    = os.getenv("GEMINI_API_KEY", "")
+    GROQ_API_KEY = os.getenv("GROQ_API_KEY") 
 
     # ── Retrieval ──────────────────────────────────────────
     TOP_K        = int(os.getenv("TOP_K", "3"))
@@ -56,7 +57,7 @@ class Config:
     GEN_TEMPERATURE_RETRY   = float(os.getenv("GEN_TEMPERATURE_RETRY",   "0.7"))
     GEN_MAX_TOKENS          = int(os.getenv("GEN_MAX_TOKENS", "512"))
     MAX_SUB_ANSWER_LEN      = int(os.getenv("MAX_SUB_ANSWER_LEN", "700"))  
-    MAX_FINAL_ANSWER_LEN    = int(os.getenv("MAX_FINAL_ANSWER_LEN", "1500"))
+    MAX_FINAL_ANSWER_LEN    = int(os.getenv("MAX_FINAL_ANSWER_LEN", "2500"))
 
     # ── RL Agent ──────────────────────────────────────────
     RL_STATE_DIM   = int(os.getenv("RL_STATE_DIM",  "1538"))  # 4×384 + 2
@@ -68,7 +69,10 @@ class Config:
     RL_CLIP_EPS    = float(os.getenv("RL_CLIP_EPS",  "0.2"))
     RL_EPOCHS      = int(os.getenv("RL_EPOCHS",     "200"))
     RL_MAX_STEPS   = int(os.getenv("RL_MAX_STEPS",  "10"))
-    RL_MODEL_PATH  = os.getenv("RL_MODEL_PATH", os.path.join(BASE_DIR, "rl_model"))
+    RL_MODEL_PATH     = os.getenv("RL_MODEL_PATH", os.path.join(BASE_DIR, "rl_model"))
+    # Filename of the checkpoint to load (relative to RL_MODEL_PATH).
+    # Set to "ppo_agent_pure_rl.pt" to use the pure-RL trained model.
+    RL_MODEL_FILENAME = os.getenv("RL_MODEL_FILENAME", "ppo_agent_pure_rl.pt")
 
     # ── Reward weights (must sum to 1.0) ──────────────────
     RW_GROUNDEDNESS   = float(os.getenv("RW_GROUNDEDNESS",   "0.25"))
