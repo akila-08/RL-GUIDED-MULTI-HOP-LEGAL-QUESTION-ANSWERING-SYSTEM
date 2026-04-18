@@ -1,21 +1,3 @@
-"""
-rl/actions.py
--------------
-Macro-action definitions and sub-action dispatch logic.
-
-The RL agent outputs ONE of 4 macro-action IDs (0-3).
-Within each macro, sub-actions are triggered automatically based on
-intermediate signals (decomp quality, retrieval confidence, etc.)
-keeping the agent's action space small and fast to learn.
-
-Macro-actions
-─────────────
-0  DECOMPOSE  → sub: decompose | evaluate | redecompose
-1  RETRIEVE   → sub: fetch_top_k | rerank | reformulate_query
-2  GENERATE   → sub: set_temperature | retry_revised_prompt
-3  COMBINE    → sub: concatenate | summarise
-"""
-
 from __future__ import annotations
 
 from enum import IntEnum

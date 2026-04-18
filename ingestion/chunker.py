@@ -1,21 +1,3 @@
-"""
-chunker.py
-──────────
-Splits the Constitution body text into one chunk per article.
-
-Article format in the body (NO "Article" prefix):
-    1.  Name and territory of the Union.—(1) India...
-    2A. Sikkim to be associated...
-    21. Protection of life and personal liberty.—No person...
-    371B. Special provision for Assam.—...
-
-KEY INSIGHT:
-    Every real article header ends with   Title.—   or   Title.—(
-    Footnotes at page bottom look like:   1. Subs. by the Constitution...
-    So we require the em-dash (—) within the first 200 chars of the match
-    to confirm it is a real article, not a footnote.
-"""
-
 import re
 from typing import List, Dict
 from ingestion.logger import get_logger
@@ -53,17 +35,6 @@ PART_PATTERN = re.compile(
 EM_DASH_RE = re.compile(r'[—\u2014\u2013]')
 
 def remove_toc(text: str) -> str:
-    """
-    Removes the Table of Contents from the extracted PDF text.
-    
-    WHY: The TOC lines look identical to article headers:
-         "1.  Name and territory of the Union."
-    So the chunker's regex was matching TOC entries as Article 1,
-    and the actual Article 1 body was being lost.
-    
-    FIX: We find where the real body text begins — right after the
-    Preamble ("WE, THE PEOPLE OF INDIA") — and slice everything before it away.
-    """
     log.info("Attempting to remove Table of Contents...")
 
     # Strategy 1: Find the Preamble — Constitution body always starts here
@@ -96,27 +67,6 @@ def remove_toc(text: str) -> str:
 import re
 
 def clean_pdf_text(text: str) -> str:
-    """
-    Cleans raw PyMuPDF-extracted text from the Constitution of India PDF.
-
-    Removes three categories of noise that cause wrong chunking:
-
-    PROBLEM 1 — Page headers (appear at top of every page after page 1):
-        THE CONSTITUTION OF INDIA
-        (Part I.—Union and its territory)
-        3                              ← page number on its own line
-
-    PROBLEM 2 — Footnote blocks (appear at bottom of every page):
-        ______________________________________________
-        1. Subs. by the Constitution (Seventh Amendment) Act...
-        2. Subs. by s. 2 ibid. for sub-clause (b)...
-        These match the article regex AND pass the em-dash filter
-        because the next page's header contains em-dashes.
-
-    PROBLEM 3 — Standalone page numbers at page start:
-        "2\nPART I\n..."  ← the "2" is a page number, not content
-    """
-
     # ── Step 1: Remove page header blocks ─────────────────────────────────
     # Pattern:
     #   "THE CONSTITUTION OF INDIA"  (page header)
@@ -158,12 +108,6 @@ def clean_pdf_text(text: str) -> str:
 
 
 def chunk_by_article(text: str) -> List[Dict]:
-    """
-    Split body text into one chunk per article.
-
-    Returns list of dicts with keys:
-        id, article_num, title, part, text, char_count
-    """
     text = clean_pdf_text(text)
     text = remove_toc(text)
     # Step 1: find all candidate matches

@@ -1,22 +1,3 @@
-"""
-rl/agent.py
------------
-PPO (Proximal Policy Optimization) agent for the Legal QA RL environment.
-
-Network Architecture
-────────────────────
-Input  : state vector s_t  ∈ ℝ^1538
-Shared : Linear(1538→512) → ReLU → Linear(512→256) → ReLU
-Policy : Linear(256→4) → Softmax    [macro-action probs]
-Value  : Linear(256→1)              [state value V(s)]
-
-Training uses:
-  - PPO clip objective  (clip_eps = 0.2)
-  - Generalised Advantage Estimation (GAE, λ=0.95)
-  - Value-function MSE loss
-  - Entropy bonus for exploration
-"""
-
 from __future__ import annotations
 
 import os
@@ -137,14 +118,6 @@ class RolloutBuffer:
         gamma: float = Config.RL_GAMMA,
         lam: float   = Config.RL_GAE_LAMBDA,
     ) -> Tuple[np.ndarray, np.ndarray]:
-        """
-        Compute discounted returns and GAE advantages.
-
-        Returns
-        -------
-        returns    : (T,) discounted returns
-        advantages : (T,) GAE advantages (normalised)
-        """
         T         = len(self.rewards)
         advantages = np.zeros(T, dtype=np.float32)
         last_gae  = 0.0
@@ -168,17 +141,6 @@ class RolloutBuffer:
 # ── PPO Agent ─────────────────────────────────────────────────────────────────
 
 class PPOAgent:
-    """
-    PPO agent wrapping PPONetwork with training utilities.
-
-    Usage
-    -----
-    agent = PPOAgent()
-    action = agent.select_action(state)   # during rollout
-    agent.update(buffer)                   # after each episode
-    agent.save() / agent.load()           # checkpointing
-    """
-
     def __init__(
         self,
         state_dim:  int   = Config.RL_STATE_DIM,

@@ -1,15 +1,3 @@
-"""
-embedder.py
-───────────
-Embeds article chunks and stores them in ChromaDB.
-
-Responsibilities:
-  1. Load the sentence-transformer embedding model
-  2. Embed chunks in configurable batches (avoids OOM on large sets)
-  3. Upsert into ChromaDB — safe to re-run (won't duplicate)
-  4. Verify stored count matches input count
-"""
-
 import time
 from typing import List, Dict, Optional
 
@@ -63,18 +51,6 @@ def get_collection() -> chromadb.Collection:
 # ── Public API ────────────────────────────────────────────────────────────────
 
 def embed_and_store(chunks: List[Dict]) -> Dict:
-    """
-    Embed all chunks and upsert them into ChromaDB.
-
-    Uses upsert (not add) so the pipeline is safely re-runnable.
-    Chunks are processed in batches to control memory usage.
-
-    Args:
-        chunks: List of chunk dicts from chunker.chunk_by_article()
-
-    Returns:
-        Summary dict:  { "total": int, "stored": int, "duration_sec": float }
-    """
     if not chunks:
         log.warning("embed_and_store called with empty chunk list.")
         return {"total": 0, "stored": 0, "duration_sec": 0.0}

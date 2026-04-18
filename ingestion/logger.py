@@ -1,7 +1,3 @@
-"""
-Centralised logger for the ingestion pipeline.
-Logs to both console (UTF-8 safe) and a rotating log file.
-"""
 import logging
 import os
 import sys

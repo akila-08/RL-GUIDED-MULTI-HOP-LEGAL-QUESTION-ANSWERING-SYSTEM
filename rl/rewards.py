@@ -1,48 +1,3 @@
-"""
-rl/rewards.py
--------------
-8 reward signal functions for the RL-Guided Legal QA system.
-
-Signal          Direction  Description
-────────────────────────────────────────────────────────────────────
-retrieval         +pos      cosine sim between sub-q and chunks
-groundedness      +pos      1 - unsupported entity fraction (inverted hallucination)
-entity            +pos      article/entity coverage in retrieved docs
-entailment        +pos      NLI entailment score (context → answer)
-fluency           +pos      grammar / language quality score
-conciseness       +pos      length efficiency (avg of sub-answer + final answer)
-query_align       +pos      semantic similarity answer ↔ original question
-decomposition     +pos      appropriateness of question decomposition given complexity
-
-All individual rewards are in [0, 1]. Combined reward:
-  R = w_gnd*gnd + w_nli*nli + w_alg*align + w_ret*ret
-      + w_ent*ent + w_dec*dec + w_flu*flu + w_con*con
-
-NOTE on groundedness:
-  groundedness = 1 - hallucination_fraction
-  So a fully grounded answer (no hallucination) → 1.0 reward.
-  A fully hallucinated answer → 0.0 reward.
-  All signals are now purely additive — no subtraction needed.
-
-NOTE on conciseness:
-  Scored separately for sub-answers (vs Config.MAX_SUB_ANSWER_LEN)
-  and the final answer (vs Config.MAX_FINAL_ANSWER_LEN), then averaged.
-  Both granular scores are also exposed in the rewards dict for logging.
-    Recommended values:
-      MAX_SUB_ANSWER_LEN   = 350   chars  (~2-3 focused sentences)
-      MAX_FINAL_ANSWER_LEN = 1000  chars  (~synthesis + conditions)
-  Set these to your p90 answer length from real data for best calibration.
-
-NOTE on decomposition:
-  Rewards whether decomposition depth MATCHES question complexity.
-  Complexity is read directly from the RL state's classification model
-  confidence scores ({"simple": p, "complex": 1-p}) — no heuristics.
-  Simple question + no decomposition    → high reward (correct behaviour)
-  Simple question + over-decomposition  → low reward  (unnecessary splits)
-  Complex question + under-decomposition → low reward (missed structure)
-  Complex question + good decomposition  → high reward
-"""
-
 from __future__ import annotations
 
 import re
@@ -128,18 +83,6 @@ def _extract_entities(text: str) -> List[str]:
 
 
 def _complexity_from_classifier(complexity_scores: Dict[str, float]) -> float:
-    """
-    Extract complexity in [0, 1] from the RL state's classifier output.
-
-    Expects complexity_scores to be a dict like:
-      {"simple": 0.85, "complex": 0.15}   -> simple question  -> 0.15
-      {"simple": 0.10, "complex": 0.90}   -> complex question -> 0.90
-
-    The 'complex' confidence IS the complexity score directly —
-    no transformation needed since it's already a calibrated probability.
-
-    Falls back to 0.5 (moderate/neutral) if scores are missing or malformed.
-    """
     if not complexity_scores:
         log.warning("complexity_scores missing from state; defaulting to 0.5")
         return 0.5
@@ -152,13 +95,6 @@ def _complexity_from_classifier(complexity_scores: Dict[str, float]) -> float:
 
 
 def _expected_sub_question_range(complexity: float):
-    """
-    Map complexity score to (min_expected, max_expected) sub-question count.
-
-    complexity < 0.25  -> simple:   [1, 1]
-    complexity < 0.55  -> moderate: [2, 3]
-    complexity >= 0.55 -> complex:  [3, 6]
-    """
     if complexity < 0.25:
         return (1, 1)
     elif complexity < 0.55:
@@ -170,10 +106,6 @@ def _expected_sub_question_range(complexity: float):
 # ── Individual reward functions ───────────────────────────────────────────────
 
 def reward_retrieval(sub_questions: List[str], doc_texts: List[str]) -> float:
-    """
-    Mean cosine similarity between sub-question embeddings and
-    the mean chunk embedding. Measures how relevant retrieved docs are.
-    """
     if not sub_questions or not doc_texts:
         return 0.0
     q_vecs   = _embed_texts(sub_questions)   # (n_q, 384)
@@ -186,22 +118,6 @@ def reward_retrieval(sub_questions: List[str], doc_texts: List[str]) -> float:
 
 
 def reward_groundedness(final_answer: str, doc_texts: List[str]) -> float:
-    """
-    Inverted hallucination signal: fraction of answer entities that ARE
-    supported by retrieved documents.
-
-    groundedness = 1 - hallucination_fraction
-
-    Returns value in [0, 1]:
-      1.0 -> all entities grounded in context (no hallucination)
-      0.0 -> all entities unsupported (fully hallucinated)
-
-    This is a purely positive reward — higher is always better.
-    No subtraction needed in combined_reward.
-
-    Neutral fallback (0.5) is used when no entities can be extracted,
-    since absence of entities is neither good nor bad evidence.
-    """
     if not final_answer or not doc_texts:
         return 0.5  # conservative neutral: no evidence either way
     context_blob = " ".join(doc_texts).lower()
@@ -214,10 +130,6 @@ def reward_groundedness(final_answer: str, doc_texts: List[str]) -> float:
 
 
 def reward_entity(final_answer: str, doc_texts: List[str]) -> float:
-    """
-    Fraction of entities/article refs in the answer that appear in
-    the retrieved context. Rewards entity consistency.
-    """
     if not final_answer or not doc_texts:
         return 0.0
     context_blob = " ".join(doc_texts).lower()
@@ -229,11 +141,6 @@ def reward_entity(final_answer: str, doc_texts: List[str]) -> float:
 
 
 def reward_entailment(final_answer: str, doc_texts: List[str]) -> float:
-    """
-    NLI entailment score: P(answer is entailed by context).
-    Uses cross-encoder/nli-deberta-v3-small.
-    Labels: contradiction=0, neutral=1, entailment=2
-    """
     if not final_answer or not doc_texts:
         return 0.0
     try:
@@ -250,14 +157,6 @@ def reward_entailment(final_answer: str, doc_texts: List[str]) -> float:
 
 
 def reward_fluency(final_answer: str) -> float:
-    """
-    Grammar / language quality proxy.
-    Uses a simple heuristic:
-      - Sentence structure check (ends with '.', contains subject)
-      - Penalise very short answers (< 10 words)
-      - Penalise excessive repetition
-    Returns float in [0, 1].
-    """
     if not final_answer or len(final_answer.strip()) < 5:
         return 0.0
 
@@ -291,20 +190,6 @@ def reward_fluency(final_answer: str) -> float:
 
 
 def reward_conciseness(answer: str, max_len: int) -> float:
-    """
-    Length efficiency: penalise answers that exceed their expected length ceiling.
-    Score = 1 - (len / max_len), clipped to [0, 1].
-
-    Args:
-      answer:   The answer text to evaluate.
-      max_len:  Length ceiling appropriate for this answer type:
-                  Config.MAX_SUB_ANSWER_LEN   for sub-answers  (recommended: 350 chars)
-                  Config.MAX_FINAL_ANSWER_LEN for final answer (recommended: 1000 chars)
-
-    Called twice per episode in compute_all_rewards — once for sub-answers
-    (averaged across all of them) and once for the final answer. The two
-    scores are then averaged into a single "conciseness" signal.
-    """
     if not answer:
         return 0.0
     ratio = len(answer) / max(max_len, 1)
@@ -328,42 +213,6 @@ def reward_decomposition(
     sub_questions: List[str],
     complexity_scores: Dict[str, float],
 ) -> float:
-    """
-    Rewards APPROPRIATE decomposition relative to question complexity,
-    using the RL state's classification model confidence scores directly.
-
-    Args:
-      sub_questions:      List of sub-questions produced by the decomposer.
-      complexity_scores:  Dict from the RL state classifier, e.g.
-                            {"simple": 0.85, "complex": 0.15}
-                          The 'complex' confidence is used as the complexity
-                          estimate in [0, 1] — no heuristics needed.
-
-    The key insight: not decomposing a simple question is CORRECT behaviour
-    and should be rewarded just as much as decomposing a complex one.
-
-    Steps:
-      1. Read complexity from classifier: complex_confidence in [0, 1].
-      2. Map to expected sub-question count range.
-      3. Score based on how well actual count falls within that range.
-
-    Scoring:
-      - Actual count within [min_expected, max_expected]  -> 1.0
-      - Each step outside the range applies a 0.2 penalty.
-      - Minimum score is 0.0.
-
-    Examples (using classifier confidence):
-      {"simple": 0.92, "complex": 0.08}  -> complexity=0.08 -> expect [1, 1]
-        sub_questions = ["What is Article 5?"]           -> 1.0  correct, kept simple
-        sub_questions = ["...", "...", "...", "..."]      -> 0.4  over-decomposed
-
-      {"simple": 0.05, "complex": 0.95}  -> complexity=0.95 -> expect [3, 6]
-        sub_questions = ["...", "...", "..."]             -> 1.0  correctly decomposed
-        sub_questions = ["..."]                           -> 0.6  under-decomposed
-
-      {"simple": 0.45, "complex": 0.55}  -> complexity=0.55 -> expect [3, 6]
-        sub_questions = ["...", "..."]                    -> 0.8  borderline
-    """
     # Treat 0 sub-questions as 1 (original question is itself a sub-question)
     n_actual   = max(len(sub_questions), 1)
     complexity = _complexity_from_classifier(complexity_scores)
@@ -386,35 +235,6 @@ def compute_all_rewards(
     doc_texts: List[str],
     complexity_scores: Optional[Dict[str, float]] = None,
 ) -> Dict[str, float]:
-    """
-    Compute all 8 rewards and return as a dict.
-    Does NOT apply weights — weights are applied in combined_reward().
-
-    All signals are in [0, 1] and purely positive. No gold answer required.
-
-    Args:
-      question:           Original user question.
-      final_answer:       Final generated answer.
-      sub_questions:      Sub-questions produced by the decomposer.
-                          Also used as proxy sub-answer texts for conciseness
-                          (replace with actual sub-answer strings if available
-                          in your state — they will score more accurately).
-      doc_texts:          Retrieved document chunks.
-      complexity_scores:  Dict from the RL state's classification model, e.g.
-                            {"simple": 0.85, "complex": 0.15}
-                          If None, decomposition reward defaults to neutral 0.5.
-
-    Conciseness breakdown (all three keys returned):
-      "conciseness_sub"   — mean conciseness across all sub-answers scored
-                            against Config.MAX_SUB_ANSWER_LEN (recommended: 350)
-      "conciseness_final" — conciseness of the final answer scored against
-                            Config.MAX_FINAL_ANSWER_LEN (recommended: 1000)
-      "conciseness"       — simple average of the two; used in combined_reward
-
-    Note: if sub_questions is empty (simple question, no decomposition),
-    sub_conciseness defaults to 1.0 — not decomposing is correct behaviour
-    and should not be penalised at the conciseness level either.
-    """
     # ── Conciseness: scored separately at each level, then averaged ───────────
     sub_conciseness_scores = [
         reward_conciseness(sq, Config.MAX_SUB_ANSWER_LEN)
@@ -441,27 +261,6 @@ def compute_all_rewards(
 
 
 def combined_reward(rewards: Dict[str, float]) -> float:
-    """
-    Weighted combination of all 8 reward signals.
-    All signals are additive — no subtraction needed since groundedness
-    is already the inverted form of hallucination (higher = better).
-
-    Only "conciseness" (the averaged value) is used here.
-    "conciseness_sub" and "conciseness_final" are diagnostic keys only.
-
-    Weight allocation (sum = 1.0):
-      groundedness  0.25  — most critical: answer must be grounded in context
-      entailment    0.20  — strongest faithfulness signal (NLI-based)
-      query_align   0.20  — answer must address the actual question
-      retrieval     0.15  — pipeline health: are we fetching the right docs?
-      entity        0.10  — entity consistency with retrieved context
-      decomposition 0.05  — appropriate question breakdown
-      fluency       0.03  — language quality
-      conciseness   0.02  — length efficiency (minor concern)
-
-    R = w_gnd*gnd + w_nli*nli + w_alg*align + w_ret*ret
-        + w_ent*ent + w_dec*dec + w_flu*flu + w_con*con
-    """
     c = Config
     R = (
         c.RW_GROUNDEDNESS  * rewards.get("groundedness",  0.0)

@@ -121,37 +121,6 @@ def _score_phrase(phrase: str) -> int:
 
 
 def extract_key_phrases_v2(question: str):
-    """
-    Extract informative legal concepts / entities from a question WITHOUT
-    relying on explicit article numbers.
-
-    Uses 5 complementary layers — all regex-based, zero external deps:
-
-    Layer 1 — Known legal institution / phrase patterns (LEGAL_PHRASE_PATTERNS)
-      e.g. "Supreme Court", "original jurisdiction", "Council of States"
-
-    Layer 2 — Multi-word Noun Phrase chunking
-      Captures consecutive Capitalised words and
-      Adjective + Noun compounds (title-case or legal-qualifier + noun-head).
-      e.g. "original jurisdiction", "exclusive power", "State Legislature"
-
-    Layer 3 — Legal role vocabulary scan
-      Any single word in _LEGAL_ROLE_HEADS that appears in the question
-      and is NOT already covered by a longer phrase.
-      e.g. "jurisdiction", "dispute", "removal"
-
-    Layer 4 — Verb-Object extraction
-      Captures "verb + noun/phrase" pairs that encode the KEY ACTION of the
-      question: "explain how … applies", "why it is exclusive".
-      e.g. "applies", "exclusive" become seeds for focused sub-questions.
-
-    Layer 5 — Adjective-Noun compound detection (lower-case)
-      Regex scan for (legal-qualifier) + (1-2 words) to catch multi-word
-      concepts that are fully lower-case in the question.
-      e.g. "exclusive jurisdiction", "inter-state dispute"
-
-    Returns: deduplicated list of up to 5 phrases, ranked by informativeness.
-    """
     q = question.strip()
     q_lower = q.lower()
     candidates: list[tuple[str, int]] = []  # (phrase, score)

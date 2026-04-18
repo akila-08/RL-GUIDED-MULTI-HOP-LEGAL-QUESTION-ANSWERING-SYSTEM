@@ -1,28 +1,4 @@
-"""
-chatbot/app.py
---------------
-FastAPI application — RL-guided multi-hop legal QA chatbot.
-
-Endpoints
-─────────
-GET  /             → health check
-POST /ask          → main chatbot endpoint
-GET  /status       → system status (models loaded, DB count)
-
-Simple question flow (complexity_score < 0.5):
-  single-hop retrieve → generate → return answer
-
-Complex question flow (complexity_score >= 0.5):
-  RL agent drives: DECOMPOSE → RETRIEVE → GENERATE → COMBINE
-
-Usage
-─────
-uvicorn chatbot.app:app --host 0.0.0.0 --port 8000 --reload
-Then visit: http://localhost:8000/docs
-"""
-
 from __future__ import annotations
-
 import logging
 import os
 import sys
@@ -116,10 +92,9 @@ def _load_classifier():
     classifier_path = Config.CLASSIFIER_MODEL_PATH
     best_model_file = os.path.join(classifier_path, "best_model.pt")
 
-    # Smart Heuristic function to distinguish simple vs complex questions
+    
     def heuristic_score_fn(q: str) -> float:
         q_lower = q.lower()
-        # Look for multi-hop trigger words as entire words
         words = q_lower.replace("?", "").replace(".", "").split()
         complex_keywords = {"difference", "compare", "between", "versus", "vs", "impact", "affect", "both", "and", "together"}
         is_complex = any(kw in words for kw in complex_keywords)
@@ -240,9 +215,8 @@ def _handle_complex(question: str) -> Dict[str, Any]:
         MacroAction.GENERATE,
         MacroAction.COMBINE,
     ]:
-        # Use agent's chosen action (inference mode — no exploration noise needed)
+        # Use agent's chosen action 
         action, _, _ = agent.select_action(state)
-        # For inference, always follow the structured pipeline for reliability
         effective_action = int(action)
         state, _, done, _ = env.step(effective_action)
         if done:

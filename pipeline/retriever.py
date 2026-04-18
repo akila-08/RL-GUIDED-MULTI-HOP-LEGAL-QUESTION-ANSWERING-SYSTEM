@@ -1,5 +1,4 @@
 """
-pipeline/retriever.py
 ---------------------
 Hybrid retrieval: BM25 + Dense (ChromaDB) → Cross-Encoder Re-ranking.
 

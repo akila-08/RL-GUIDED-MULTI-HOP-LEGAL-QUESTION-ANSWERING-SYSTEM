@@ -1,24 +1,3 @@
-"""
-rl/state.py
------------
-Builds the 6-component RL state vector at each step t.
-
-State s_t = concat(e_q, e_subs, e_docs, e_ans, [c_t], [n_t])
-          = dim  384 + 384  + 384  + 384  +  1  +  1  = 1538
-
-Components
-──────────
-e_q    : all-MiniLM-L6-v2 embedding of the original question  (384)
-e_subs : mean-pool of sub-question embeddings so far           (384)
-e_docs : mean-pool of retrieved chunk embeddings so far        (384)
-e_ans  : mean-pool of intermediate sub-answer embeddings       (384)
-c_t    : complexity confidence score from LegalBERT            (1)
-n_t    : step / max_steps  (normalised efficiency signal)      (1)
-
-If a component has nothing yet (e.g. no docs retrieved yet),
-a zero vector of the correct shape is used.
-"""
-
 from __future__ import annotations
 
 import numpy as np

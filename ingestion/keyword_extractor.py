@@ -94,15 +94,6 @@ def extract_keywords(text: str) -> str:
 
 
 def extract_keywords_batch(chunks: List[Dict]) -> List[str]:
-    """
-    Extract keywords for all chunks.
-
-    Args:
-        chunks: list of dicts with "text" key
-
-    Returns:
-        List of comma-separated keyword strings (one per chunk).
-    """
     log.info("Starting YAKE keyword extraction for %d chunks...", len(chunks))
 
     # Load extractor once

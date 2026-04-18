@@ -1,24 +1,3 @@
-"""
-pipeline/complexity.py
-----------------------
-Standalone complexity scorer for legal questions.
-
-Combines:
-  1. LegalBERT classifier score (raw float in [0,1])
-  2. Rule-based floors per question type (comparative/conditional/analytical)
-  3. Lexical heuristics (multi-hop signals, clause count, concept density)
-
-Usage
------
-from pipeline.complexity import compute_complexity_score
-
-score = compute_complexity_score("Compare the roles of Municipalities and Panchayats.")
-# → 0.80  (comparative floor applied)
-
-score = compute_complexity_score("What is Article 21?")
-# → 0.50  (low lexical complexity, analytical type, no boost)
-"""
-
 from __future__ import annotations
 
 import re
@@ -52,14 +31,6 @@ _CLAUSE_MARKERS = [",", ";", "and", "or", "but", "while", "whereas",
 
 
 def _lexical_bonus(question: str) -> float:
-    """
-    Returns an additive bonus in [0, 0.20] based on lexical complexity signals.
-
-    Scoring:
-      +0.05 per multi-hop signal phrase (max +0.10)
-      +0.01 per clause marker past the first two (max +0.05)
-      +0.05 if question length > 15 words (long questions are usually complex)
-    """
     q = question.lower()
     bonus = 0.0
 
@@ -82,26 +53,6 @@ def compute_complexity_score(
     question: str,
     classifier_fn: Optional[Callable[[str], float]] = None,
 ) -> float:
-    """
-    Compute final complexity score in [0, 1] for a legal question.
-
-    Parameters
-    ----------
-    question       : The raw user question.
-    classifier_fn  : Optional callable(question) → float from LegalBERT.
-                     If None, defaults to 0.7 (assume moderately complex).
-
-    Returns
-    -------
-    float in [0, 1] — higher means more complex.
-
-    Logic
-    -----
-    raw     = classifier_fn(question)  [or 0.7]
-    floor   = _TYPE_FLOOR[question_type]
-    bonus   = _lexical_bonus(question)
-    score   = max(raw, floor + bonus)   clipped to [0, 1]
-    """
     from pipeline.baseline_rules import infer_question_type
 
     # Step 1: Raw classifier score
@@ -133,20 +84,6 @@ def compute_complexity_score(
 
 
 def explain_complexity(question: str, classifier_fn=None) -> dict:
-    """
-    Return a breakdown dict for debugging/display.
-
-    Returns
-    -------
-    {
-      "question_type": str,
-      "classifier_raw": float,
-      "type_floor": float,
-      "lexical_bonus": float,
-      "final_score": float,
-      "verdict": "simple" | "moderate" | "complex"
-    }
-    """
     from pipeline.baseline_rules import infer_question_type
 
     q_type = infer_question_type(question)

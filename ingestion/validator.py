@@ -1,15 +1,3 @@
-"""
-validator.py
-────────────
-Validates the ingestion output before and after storing.
-
-Checks:
-  1. Chunk completeness — no duplicate IDs, expected count range
-  2. Chunk quality     — no empty text, titles extracted properly
-  3. DB verification  — count in ChromaDB matches what was ingested
-  4. Spot-check       — verifies a known article (Article 21) was stored
-"""
-
 from typing import List, Dict, Tuple
 from ingestion.logger import get_logger
 
@@ -24,12 +12,6 @@ MAX_EXPECTED_CHUNKS = 700
 
 
 def validate_chunks(chunks: List[Dict]) -> Tuple[bool, List[str]]:
-    """
-    Validate the list of chunks before embedding.
-
-    Returns:
-        (is_valid, list_of_warning_messages)
-    """
     warnings = []
 
     # ── Count ──────────────────────────────────────────────
@@ -90,12 +72,6 @@ def validate_chunks(chunks: List[Dict]) -> Tuple[bool, List[str]]:
 
 
 def validate_db(chunks: List[Dict], db_count: int) -> Tuple[bool, List[str]]:
-    """
-    Validate the ChromaDB state after embedding.
-
-    Returns:
-        (is_valid, list_of_warning_messages)
-    """
     warnings = []
 
     if db_count < len(chunks):

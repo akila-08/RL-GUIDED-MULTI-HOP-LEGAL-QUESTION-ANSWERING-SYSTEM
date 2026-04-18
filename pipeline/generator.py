@@ -1,18 +1,3 @@
-"""
-pipeline/generator.py
----------------------
-Sub-answer generation using Google Gemini (primary) with Anthropic Claude
-as fallback. Controlled by LLM_MODEL in config / .env.
-
-Sub-actions supported (selected automatically based on context):
-  set_temperature      : use DEFAULT (0.3) for factual grounding
-  retry_revised_prompt : switch to RETRY (0.7) + richer prompt if first
-                         generation is empty / too short / "Not found"
-
-Each sub-question is answered independently using its relevant chunks.
-If fewer chunks than sub-questions exist, the available chunks are shared.
-"""
-
 from __future__ import annotations
 
 import logging

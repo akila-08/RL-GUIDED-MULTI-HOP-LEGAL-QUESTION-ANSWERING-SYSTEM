@@ -1,24 +1,3 @@
-"""
-pipeline/decomposer.py
-----------------------
-T5-based question decomposer with quality evaluation and rule-based fallback.
-
-Flow
-────
-1. decompose(question)
-   └─ t5_decompose(question)          ← Flan-T5-base from decomp_model/
-   └─ evaluate_decomposition(...)     ← ROUGE-L + keyword coverage + count + atomicity
-   └─ if score poor → baseline_decompose(question)   ← rule-based fallback
-
-Evaluation metrics
-──────────────────
-rouge_score : ROUGE-L recall of sub-qs joined, vs original question
-              (high = sub-qs collectively paraphrase the question)
-coverage    : fraction of key tokens from question found in sub-qs
-              (ensures no important concept is dropped)
-Threshold   : configurable in Config (DECOMP_ROUGE_THRESH, DECOMP_COVERAGE_THRESH)
-"""
-
 from __future__ import annotations
 
 import os

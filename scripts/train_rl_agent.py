@@ -333,6 +333,60 @@ def train(
                 len(env.doc_texts),
             )
 
+            # ── Micro-action details ───────────────────────────────────────
+            micro = []
+
+            # DECOMPOSE micro-actions
+            if env.decompose_result is not None:
+                dr = env.decompose_result
+                if dr.used_baseline:
+                    micro.append("DECOMPOSE → redecompose(baseline_fallback)")
+                else:
+                    micro.append(
+                        f"DECOMPOSE → decompose(T5) "
+                        f"[rouge={dr.rouge_score:.2f}, cov={dr.coverage_score:.2f}]"
+                    )
+
+            # RETRIEVE micro-actions
+            if env.retrieve_result is not None:
+                rr = env.retrieve_result
+                if rr.was_reformulated:
+                    q_str = ", ".join(
+                        f'"{q[:30]}…"'
+                        for q in (rr.reformulated_queries or [])[:2]
+                    )
+                    micro.append(f"RETRIEVE → reformulate_query({q_str})")
+                else:
+                    micro.append(
+                        f"RETRIEVE → fetch_top_k+rerank "
+                        f"[{len(rr.chunks)} chunks]"
+                    )
+
+            # GENERATE micro-actions
+            if env.generate_result is not None:
+                gr = env.generate_result
+                temps = [f"{t:.1f}" for t in gr.temperatures_used]
+                if gr.retried:
+                    micro.append(
+                        f"GENERATE → retry_revised_prompt "
+                        f"[temps={temps}]"
+                    )
+                else:
+                    micro.append(
+                        f"GENERATE → set_temperature({temps[0] if temps else '?'})"
+                    )
+
+            # COMBINE micro-actions
+            if env.combine_result is not None:
+                cr = env.combine_result
+                micro.append(f"COMBINE → {cr.method}")
+
+            if micro:
+                log.info("  Micro-actions:")
+                for m in micro:
+                    log.info("    ↳ %s", m)
+
+
         # ── Checkpoint ─────────────────────────────────────────────────────
         if ep % save_every == 0:
             agent.save(ckpt_path)

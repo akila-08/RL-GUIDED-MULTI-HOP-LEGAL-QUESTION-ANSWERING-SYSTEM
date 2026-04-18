@@ -1,17 +1,3 @@
-"""
-pipeline/combiner.py
---------------------
-Combines sub-answers into a single final answer.
-
-Two sub-actions (chosen by the RL environment based on complexity_score):
-  concatenate : simple join — preserves all detail, fast, no LLM call
-  summarise   : LLM-powered condensation — better for complex multi-hop answers
-
-The RL environment chooses:
-  summarise   → complexity_score >= 0.5  (complex question)
-  concatenate → complexity_score <  0.5  (simple question)
-"""
-
 from __future__ import annotations
 
 import logging
@@ -105,19 +91,6 @@ def combine(
     question: str,
     method: str = "summarise",
 ) -> CombineResult:
-    """
-    Combine sub-answers into a final answer.
-
-    Parameters
-    ----------
-    sub_answers : list of sub-answer strings from the generator
-    question    : original user question (used as context for summarisation)
-    method      : 'concatenate' or 'summarise'
-
-    Returns
-    -------
-    CombineResult with .final_answer and .method
-    """
     if not sub_answers:
         return CombineResult(
             final_answer="No sub-answers were generated.",
