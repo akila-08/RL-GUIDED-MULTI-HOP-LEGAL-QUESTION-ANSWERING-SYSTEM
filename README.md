@@ -308,24 +308,3 @@ How do Articles 14 and 16(2) together ensure fairness in public employment?
 
 ---
 
-# Future Enhancements
-
-* Legal citation generation
-* Case law integration
-* Multilingual legal QA
-* Voice-based legal assistant
-* Advanced LegalBERT fine-tuning
-* Knowledge Graph integration
-
----
-
-# Contributors
-
-* Sujan S
-* AI Team
-
----
-
-# License
-
-This proje
